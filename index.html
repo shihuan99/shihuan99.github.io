@@ -1,0 +1,266 @@
+<html lang="zh-CN">
+  <head>
+    <title>Shihuan's Blog</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <style>
+    .fixed-header {
+      position: fixed;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+      max-width: 1000px;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .fixed-header-item {
+      padding: 15px 30px;
+      position: relative;
+    }
+
+    .fixed-header-item:not(:first-child) {
+      border-left: 1px solid gray;
+    }
+
+    .dropdown {
+      position: absolute;
+      top: 70px;
+      left: 0;
+      background: white;
+      border-radius: 0 0 5px 5px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-1px);
+      transition: all 0.3s ease;
+      z-index: 1001;
+    }
+
+    .fixed-header-item:hover .dropdown {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .dropdown .article {
+      padding: 15px 20px;
+    }
+
+    .dropdown .article:hover {
+      background: gray;
+    }
+
+    .dropdown .level1 {
+      padding: 15px 20px;
+      position: relative;
+    }
+
+    .dropdown .level1 .level2 {
+      position: absolute;
+      left: 105%;
+      top: 0;
+      background: white;
+      border-radius: 5px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(20px);
+      transition: all 0.3s ease;
+      z-index: 1002;
+      display: flex;
+      flex-direction: column;
+      word-break: keep-all;
+    }
+
+    .dropdown .level1:hover .level2 {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+
+
+    blockquote {
+      background:#f9f9f9;
+      border-left:5px solid #ccc;
+      margin:1.5em 10px;
+      padding:.5em 10px;
+      quotes:"\201C""\201D""\2018""\2019";
+    }
+    blockquote p{
+      display:inline;
+    }
+
+
+    #preview {
+      min-height: 400px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f9f9f9;
+      overflow: auto;
+    }
+    .mermaid {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      overflow: auto;
+      text-align: center;
+    }
+    .code-block {
+      position: relative;
+      margin: 15px 0;
+    }
+    .code-block pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 5px;
+      overflow: auto;
+    }
+    .code-block::before {
+      content: attr(data-language);
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: #3498db;
+      color: white;
+      padding: 3px 10px;
+      font-size: 12px;
+      border-bottom-left-radius: 5px;
+      border-top-right-radius: 5px;
+    }
+
+    .markdown-viewer {
+      font-size: 14px;
+      margin: 80px 30px;
+      word-wrap: break-word;
+    }
+    @media (max-width: 768px) {
+      .markdown-viewer {
+        font-size: 16px;
+        word-wrap: break-word;
+        margin: 80px 10px;
+      }
+    }
+  </style>
+  <body>
+    <div id="menu" class="fixed-header"></div>
+    <div class="markdown-viewer" id="markdown-viewer"></div>
+  </body>
+
+  <script src="https://cdn.bootcdn.net/ajax/libs/marked/16.2.0/lib/marked.umd.js"></script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/mermaid/11.9.0/mermaid.min.js"></script>
+
+  <script>
+    async function loadFile(filePath) {
+      const response = await fetch(filePath)
+      return await response.text()
+    }
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      look: 'handDrawn',
+      themeVariables: {
+        fontFamily: 'Comic Sans MS',
+        lineColor: '#000000'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
+    const renderer = {
+      code(code) {
+        if (code.lang === 'mermaid') {
+          return `<div class="mermaid">${code.text}</div>`;
+        }
+
+        // 对于其他代码块，使用默认渲染
+        return `<div class="code-block" data-language="${code.lang}"><pre><code>${code.text}</code></pre></div>`;
+      }
+    };
+    marked.use({ renderer });
+
+    async function loadMarkdownFile(filePath) {
+      const htmlPreview = document.getElementById('markdown-viewer')
+      try {
+        htmlPreview.innerHTML = await marked.parse(await loadFile(filePath))
+        mermaid.init(undefined, '.mermaid');
+        window.location.hash = '#' + filePath
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    const fileList = []
+    async function renderMenuAndInitArticle() {
+      const menu = JSON.parse(await loadFile("./docs/menu"))
+      const menuView = document.getElementById('menu')
+      let menuContent = ""
+      menu.forEach(level1 => {
+        nav_item_html = ''
+        level1.items.forEach(level2 => {
+          level2_html = ''
+          if (level2.items != null) {
+            level2_html += "<div class=\"level2\">"
+            level2.items.forEach(level3 => {
+              var filePath = level1.name + "/" + level2.name + "/" + level3.name
+              fileList.push(filePath)
+              level2_html += `<div class="article" id="${filePath}">${level3.name.replace('.md', '')}</div>`
+            })
+            level2_html += "</div>"
+          }
+          nav_item_html +=
+                  `<div class="level1 ${level2.items == null ? "article" : ""}">
+                        <div>${level2.name}</div>
+                        ${level2_html}
+                  </div>`
+        })
+        menuContent +=
+                `<div class='fixed-header-item'><div class="title">${level1.name}</div>
+                    <div class="dropdown">
+                        ${nav_item_html}
+                    </div>
+                </div>
+                `
+      })
+      menuView.innerHTML = menuContent
+      if (window.location.hash != null && window.location.hash.startsWith('#./docs')) {
+        await loadMarkdownFile(window.location.hash.substring(1))
+      } else {
+        await loadMarkdownFile("./docs/" + fileList[Math.floor(Math.random() * fileList.length)])
+      }
+    }
+    renderMenuAndInitArticle()
+
+    document.addEventListener('DOMContentLoaded', function() {
+      let interval = setInterval(() => {
+        let elements = document.querySelectorAll('.article')
+        elements.forEach(element => {
+          element.addEventListener('click', function (e) {
+            const articleElement = e.target.closest('.article');
+            if (articleElement) {
+              const id = articleElement.id;
+              loadMarkdownFile("./docs/" + id)
+            }
+          })
+        })
+        if (elements.length > 0) {
+          clearInterval(interval)
+        }
+      }, 100)
+    })
+  </script>
+</html>
